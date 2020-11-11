@@ -54,4 +54,3 @@ for route in bus_route:
                 req_time, stt = path.search(gps_x[start_index], gps_y[start_index], gps_x[dest_index], gps_y[dest_index], route)
                 print('소요시간 : ' + req_time)
                 print('도착 정류장 : ' + stt)
-
