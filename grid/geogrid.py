@@ -190,24 +190,3 @@ def literal_grid(glon, glat):
         glon= int(glon/10)
     g_literal = "".join(g_literal)
     return g_literal
-
-if __name__ == "__main__":
-    '''
-    print("대한민국 최서단: " + str(gcon.KOR_BND_LEFT))
-    print("대한민국 최동단: " + str(gcon.KOR_BND_RIGHT))
-    print("대한민국 최북단: " + str(gcon.KOR_BND_UPP))
-    print("대한민국 최남단: " + str(gcon.KOR_BND_LOW))
-    '''
-    cgrid = GeoGrid()
-    #print(cgrid.get_grid_id(37.544444, 127.22222222))
-    '''
-    grid_lat = 1515
-    grid_lon = 800
-    print("\n\n({}, {} 그리드의 중앙 좌표:".format(grid_lat, grid_lon), end=' ')
-    ctr_coord = cgrid.grid_center(literal_grid(grid_lat, grid_lon))
-    print(ctr_coord)
-    
-    ctr_grid = cgrid.get_grid_id(ctr_coord[0], ctr_coord[1])
-    print(ctr_grid)
-    '''
-    print("grid ID:",cgrid.get_grid_id(127.1006376085, 37.5555))
