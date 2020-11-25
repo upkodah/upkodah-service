@@ -9,7 +9,7 @@ my_api_key = unquote('bhQZulxZSz%2FeMsDseMe2DSccTVB%2BQPnxTxDp4SrK7HYRP%2BS0YDiB
 service_key = "SVpCy0bvZ5pGxpQdz6HmdUFgFl5L6vUbmK9tzQAPslFjjRHSBsKGTvYAkRC84aHoeUct2mtsiD8YfWyEzOQMIQ%3D%3D"
 ```
 
-## 버스 노선 데이터 받기
+## 1. 버스 노선 데이터 받기
 https://www.data.go.kr/tcs/dss/selectApiDataDetailView.do?publicDataPk=15000193
 
 공공데이터 포털을 호출하여 버스 노선 데이터 중 아래의 데이터를 데이터 프레임으로 저장한다.
@@ -18,7 +18,11 @@ https://www.data.go.kr/tcs/dss/selectApiDataDetailView.do?publicDataPk=15000193
 ```
 
 
-## 두 버스 정류장 사이의 시간 구하기
+## 2. 두 버스 정류장 사이의 시간 구하기
 https://www.data.go.kr/tcs/dss/selectApiDataDetailView.do?publicDataPk=15000414
 
 목적지에서 가까운 버스 정류장과 목표로 하는 매물에 가까운 버스 정류장 사이의 이동 시간을 구하기 위해 공공데이터 포털의 대중교통환승경로 조회 서비스를 이용한다.
+환승을 고려하지 않고 가는 경우만을 생각하기 때문에 처음 탑승했던 버스 노선과 환승 횟수를 기준으로 필터링하여 원하는 목적지의 버스 정류장을 출력한다.
+
+## 3. 목적지 근처의 버스 정류장 찾기
+https://www.data.go.kr/tcs/dss/selectApiDataDetailView.do?publicDataPk=15000759
