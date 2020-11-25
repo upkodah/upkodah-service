@@ -26,7 +26,7 @@ https://www.data.go.kr/tcs/dss/selectApiDataDetailView.do?publicDataPk=15000193
 https://www.data.go.kr/tcs/dss/selectApiDataDetailView.do?publicDataPk=15000414
 
 목적지에서 가까운 버스 정류장과 목표로 하는 매물에 가까운 버스 정류장 사이의 이동 시간을 구하기 위해 공공데이터 포털의 대중교통환승경로 조회 서비스 api를 이용합니다.
-환승을 고려하지 않고 가는 경우만을 생각하기 때문에 처음 탑승했던 버스 노선과 환승 횟수를 기준으로 필터링하여 원하는 목적지의 버스 정류장을 출력합니다.
+환승을 고려하지 않고 가는 경우만을 생각하기 때문에 처음 탑승했던 버스 노선과 환승 횟수를 기준으로 필터링하여 원하는 목적지의 버스 정류장을 반환합니다.
 
 
 ## 4. 목적지에서 입력된 시간에 갈 수 있는 버스 정류장의 gps 반환
@@ -45,4 +45,4 @@ https://www.data.go.kr/tcs/dss/selectApiDataDetailView.do?publicDataPk=15000414
 >
 
 ## 5. 반환 받은 버스 정류장이 존재하는 그리드 획득
-4번에서 얻은 버스 정류장의 gps를 가지고 
+4번에서 얻은 버스 정류장의 gps를 가지고 그리드를 나누는 코드를 호출하여 해당 gps가 어느 그리드에 해당하는지 반환합니다.
