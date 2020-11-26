@@ -14,22 +14,23 @@ LATI_LOW = 37.413294  # 서울특별시 위도 하한
 
 DFT_RADIUS = 150
 
-
-def read_key():
+def read_key(key_name):
     ''' config.ini에서 API Key를 읽어오는 함수 '''
     try:
         config = ConfigParser()
         config.read('config.ini')
 
-        key_dict = config['API KEY']
+        key = config['API KEY'][key_name]
+    except KeyError:
+        print(f'KeyError: key_name <{key_name}>에 해당하는 키가 없습니다.')
     except:
         print('ConfigReadError:')
         raise Exception
     else:
-        return key_dict['kr.go.data.jsj'].strip('\'')
+        return key.strip('\'')
 
 # 키 직접 코드에 쓸 경우를 위해 아래와 같이 놔 둠.
-api_key = read_key()
+api_key = read_key('kr.go.data.jsj')
 
 def get_station_by_pos(gpsX, gpsY, radius=DFT_RADIUS):
     '''
@@ -196,15 +197,24 @@ if __name__=='__main__':
     gpsX = 126.89151
     gpsY = 37.511111
     radius = 200
-    print(f'\n(1) x:{gpsX}, y:{gpsY} 의 반경 {radius}m 안의 정류소')
+    print(f'\n (1) x:{gpsX}, y:{gpsY} 의 반경 {radius}m 안의 정류소')
     ars_list = get_station_by_pos(gpsX, gpsY, radius)
     print("arsId list: ", ars_list)
 
     # test get_route_by_station(ars_id)
-    print(f'\n(2) 정류소 {ars_list[0]}의 노선')
-    route_list = get_route_by_station(ars_list[0])
+    if ars_list != None and len(ars_list) > 0:
+        ars_id = ars_list[0]
+    else:
+        ars_id = '19999'
+    print(f'\n (2) 정류소 {ars_id}의 노선')
+    route_list = get_route_by_station(ars_id)
     print("route list: ", route_list)
 
-    print(f'\n(3) 노선 {route_list[0]}의 버스 정류소')
-    ars_id_list = get_station_by_route(route_list[0])
+    # test get_route_by_station(ars_id)
+    if route_list != None and len(route_list) > 0:
+        route = route_list[0]
+    else:
+        route = '100100550'
+    print(f'\n (3) 노선 {route}의 버스 정류소')
+    ars_id_list = get_station_by_route(route)
     print("arsId List: ", ars_id_list)

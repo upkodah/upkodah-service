@@ -1,5 +1,5 @@
-from urllib.request import urlopen
-from urllib.parse import unquote
+import requests
+from configparser import ConfigParser
 from bs4 import BeautifulSoup
 
 # URL - request format
@@ -16,9 +16,25 @@ LONG_LOW = 126.734086  # 서울특별시 경도 하한
 LATI_UPP = 37.715133  # 서울특별시 위도 상한 Y
 LATI_LOW = 37.413294  # 서울특별시 위도 하한
 
+DFT_RADIUS = 150
+
+def read_key():
+    try:
+        config = ConfigParser()
+        config.read('config.ini')
+
+        _dict = config['APIKEY']
+    except:
+        print('ConfigReadError:')
+        raise Exception
+    else:
+        return _dict['kr.go.data.jsj']
 
 # header code enum for checking
 # headerCd = ("OK", )
+
+api_key = read_key()
+print(api_key)
 
 class BusStation:
     '''
@@ -34,23 +50,37 @@ class BusStation:
     (CallBackURL: http://ws.bus.go.kr/api/rest/stationinfo/getStationByPos)
     '''
 
-    def __init__(self, serviceKey):
+    def __init__(self, serviceKey=api_key):
         '''
         공공 데이터 포털에서 발급받은 Service Key를 입력받아 초기화
         gpsX, gpsY의 default 값은 서울의 중앙 좌표로 정의(을지로 주변)
         '''
-        # serviceKey와 request foramat 초기화
-        self.serviceKey = unquote(serviceKey)
-        self.requestForm = API_STATION + FUNC_ST_BY_POS + "?serviceKey=" + self.serviceKey  # request 형식 = CallBackURL + serviceKey
+        self._uri = API_STATION + FUNC_ST_BY_POS
+        
+        # set serviceKey header
+        self._header = {'serviceKey':serviceKey}
+        self._params = dict()
 
         self.numStop = 0
 
         # 요청 변수 없이 요청하여 API 검사
-        xmlStation = urlopen(self.requestForm)
-        bsStation = BeautifulSoup(xmlStation.read(), 'lxml-xml')
+        resp = requests.get(self._uri, headers=self._header)
+        bsStation = BeautifulSoup(resp.text, 'lxml-xml')
 
+    def _set_params(self, gpsX, gpsY, radius=DFT_RADIUS):
+        '''
+        set query paramerters and error checking
+        
+        Args:
+            gpsX (float): longitude
+            gpsY (float): latitude
+            radius (float): searching radius
+        '''
+        self._params['gpsX'] = gpsX
+        self._params['gpsY'] = gpsY
+        self._params['radius'] = radius
 
-    def findStation(self, gpsX, gpsY, radius=150):
+    def findStation(self, gpsX, gpsY, radius=DFT_RADIUS):
         '''
         객체 생성 후 API 요청을 위해 실행하는 메소드. 해당 위치 주변의 정류소를 저장한다.
         정류소가 0개일 경우 검색 반경을 넓혀서 재요청한다.
@@ -66,15 +96,13 @@ class BusStation:
         arsIdList:            정류소 목록
         '''
         # 초기화
-        self.gpsX = gpsX
-        self.gpsY = gpsY
-        self.radius = radius
+        self._set_params(gpsX, gpsY, radius)
 
         while self.numStop == 0:
-            request_Gps2Stop = self.requestForm + "&tmX=" + str(gpsX) + "&tmY=" + str(gpsY) + "&radius=" + str(radius)
+            # 출력 XML 텍스트
+            resp = requests.get(self._uri, params=self._params, headers=self._header)  
+            bsStation = BeautifulSoup(resp.text, 'lxml-xml')  # Parsing XML
 
-            xmlStation = urlopen(request_Gps2Stop)  # 출력 XML 텍스트
-            bsStation = BeautifulSoup(xmlStation.read(), 'lxml-xml')  # Parsing XML
             # 헤더 검사
             headerCode = int(bsStation.find("headerCd").contents[0])
             if headerCode == 5:
@@ -95,10 +123,10 @@ class BusStation:
                     self.numStop = 0
                     return None
 
-            self.arsIdList = list(range(0, self.numStop))
-            for i in range(0, self.numStop):
+            self.arsIdList = []
+            for item in self.itemList:
                 # input arsIdList
-                self.arsIdList[i] = self.itemList[i].find('arsId').contents[0]
+                self.arsIdList.append(item.find('arsId').contents[0])
             return self.arsIdList
 
 
@@ -115,7 +143,7 @@ class BusRoute:
     (CallBackURL: http://ws.bus.go.kr/api/rest/stationinfo/getRouteByStation)
     '''
 
-    def __init__(self, serviceKey):
+    def __init__(self, serviceKey=api_key):
         '''
         공공 데이터 포털에서 발급받은 Service Key를 입력받아 초기화
         '''
@@ -185,7 +213,7 @@ class BusNode:
     (CallBack URL: http://ws.bus.go.kr/api/rest/busRouteInfo/getStaionByRoute)
     '''
 
-    def __init__(self, serviceKey):
+    def __init__(self, serviceKey=api_key):
         '''
         공공 데이터 포털에서 발급받은 Service Key를 입력받아 초기
         '''

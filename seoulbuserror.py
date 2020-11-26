@@ -41,3 +41,5 @@ def inspect_hearder_code(bsxml):
 # TODO: raise WrongQueryRequestError
 # TODO: WrongPositionInputError
 # TODO: raise API temporary error
+
+# TODO: valid ars_id check, route id
