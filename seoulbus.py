@@ -4,7 +4,7 @@ from configparser import ConfigParser
 from bs4 import BeautifulSoup
 from requests.exceptions import HTTPError
 import seoulbuserror as sberr
-#import xmltodict
+
 
 # 서울특별시 경위도 한계
 LONG_UPP = 127.269311  # 서울특별시 경도 상한 X
@@ -70,18 +70,12 @@ def get_station_by_pos(gpsX, gpsY, radius=DFT_RADIUS):
         print(f'HTTP ERROR: RESPONSE <{resp.status_code}>')
         return None
 
-
-    
     bsxml = BeautifulSoup(resp.text, 'lxml-xml')  # Parsing XML
 
     # 헤더 코드 검사. 검사 대상이 없을 경우, 빈 리스트 반환
     if sberr.inspect_hearder_code(bsxml) in sberr.NO_ITEM_CODE:
         return []
-    
-    # item_list as OrderedList
-    # item_list = xmltodict.parse(resp.text)['ServiceResult']['msgBody']['itemList']
-    # for item in item_list:
-    
+
     # item list
     item_list = bsxml.findAll('itemList')
     ars_id_list = []
@@ -156,7 +150,7 @@ def get_station_by_route(route):
         HeaderCodeError: HTTP Response 200 중 API 상에서 일어난 오류.
 
     Example:
-
+        ars_id_list = get_station_by_route(route)                       # route = '100100550'
 
     """
     # 초기화
