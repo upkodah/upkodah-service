@@ -1,0 +1,6 @@
+# environment
+.vscode
+__pycache__
+
+# config file
+*.ini
