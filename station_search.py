@@ -215,6 +215,7 @@ class SubwayDestination:
         for stt in result_station:
             gps_x, gps_y = StationGps().get_station_gps(stt)
             result_gps.append([gps_x, gps_y])
+        result_gps = set(result_gps)
 
         return  result_gps, result_station, station_name
 
