@@ -83,7 +83,7 @@ class StationGps:
                                        quote_plus('category_group_code'): 'SW8',
                                        quote_plus('x'): gps_x,
                                        quote_plus('y'): gps_y,
-                                       quote_plus('radius'): '350',
+                                       quote_plus('radius'): '700',
                                        quote_plus('query'): 'station'})
 
         header = {'Authorization': station_api_key}
@@ -91,16 +91,12 @@ class StationGps:
         station_dict= json.loads(response.text)
 
         for vals_dict in station_dict['documents']:
-            gps_x_list.append(vals_dict['x'])
-            gps_y_list.append(vals_dict['y'])
             name_list.append(vals_dict['place_name'])
             distance.append(vals_dict['distance'])
 
-        return gps_x_list, gps_y_list, name_list, distance
+        return name_list, distance
 
     def get_station_gps(self, station):
-
-        place_name_list = []
 
         url = 'https://dapi.kakao.com/v2/local/search/keyword.json'
         queryParams = '?' + urlencode({quote_plus('page'): '1',
@@ -159,8 +155,6 @@ class SubwayDestination:
 
     def result_sub_station(self):
 
-        gps_x_list = []
-        gps_y_list = []
         result_gps = []
         name_list = []
         distance = []
@@ -169,7 +163,7 @@ class SubwayDestination:
         tmp_time = 0
 
         stt_gps = StationGps()
-        gps_x_list, gps_y_list, name_list, distance = stt_gps.get_near_station_gps(self.gps_x, self.gps_y)
+        name_list, distance = stt_gps.get_near_station_gps(self.gps_x, self.gps_y)
 
         for i, distance in enumerate(distance):
             # 목적지에서 지하철역까지 거리를 성인 평균 보행 속도 67m/s 를 나누어 지하철역까지의 보행시간 계산
