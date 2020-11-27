@@ -169,9 +169,11 @@ class SubwayDestination:
             # 목적지에서 지하철역까지 거리를 성인 평균 보행 속도 67m/s 를 나누어 지하철역까지의 보행시간 계산
             self.time = self.time - int(distance)/67
             station_name = name_list[i].split()[0]
+            station_route = name_list[i].split()[1]
+            print('입력 지하철역 : ' + station_name, ' ', station_route)
 
             for j, sub in enumerate(subway_route):
-                if station_name in sub:
+                if station_name in sub and station_route == sub[0]:
                     #아래방향으로 지하철역 확인
                     while(True):
                         if j+cnt >= len(subway_route):
@@ -179,6 +181,8 @@ class SubwayDestination:
                             tmp_time = 0
                             break
                         # 도착 지하철역 까지의 시간이 처음 입력된 시간을 초과하기 전에 break
+                        if subway_route[j+cnt][2] == '':
+                            subway_route[j + cnt][2] = 0
                         if tmp_time + int(subway_route[j+cnt][2]) > self.time:
                             if subway_route[j][0] == subway_route[j + cnt][0]:
                                 # 같은 지하철 노선인지 확인 후 추가
@@ -212,12 +216,12 @@ class SubwayDestination:
             gps_x, gps_y = StationGps().get_station_gps(stt)
             result_gps.append([gps_x, gps_y])
 
-        return  result_gps
+        return  result_gps, result_station, station_name
 
 
 
 if __name__ == '__main__':
 
 
-    sub = SubwayDestination(127.0816985, 37.5642135, 20)
+    sub, stt = SubwayDestination(127.0816985, 37.5642135, 20)
     print(sub.result_sub_station())

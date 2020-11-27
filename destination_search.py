@@ -1,33 +1,12 @@
 import requests, bs4
 import pandas as pd
 import SeoulBusAPI
-import numpy as np
 from urllib.parse import urlencode, quote_plus, unquote
 
 
 # API 서비스키 값
 my_api_key = unquote('bhQZulxZSz%2FeMsDseMe2DSccTVB%2BQPnxTxDp4SrK7HYRP%2BS0YDiBn93FLz0d%2FMFbyMPUqAvaMqrtW4e9%2FnHYhA%3D%3D')
 service_key = "SVpCy0bvZ5pGxpQdz6HmdUFgFl5L6vUbmK9tzQAPslFjjRHSBsKGTvYAkRC84aHoeUct2mtsiD8YfWyEzOQMIQ%3D%3D"
-
-
-class GetLocation:
-
-
-    def station_name(self, stt_name):
-
-        xmlUrl = 'http://ws.bus.go.kr/api/rest/pathinfo/getLocationInfo'
-
-        queryParams = '?' + urlencode({quote_plus('ServiceKey'): my_api_key,
-                                       quote_plus('stSrch'): stt_name})
-
-        response = requests.get(xmlUrl + queryParams).text.encode('utf-8')
-        xmlobj = bs4.BeautifulSoup(response, 'lxml-xml')
-        itemList_tag = xmlobj.findAll('itemList')
-
-        gps_x = itemList_tag[0].find('gpsX').text
-        gps_y = itemList_tag[0].find('gpsY').text
-
-        return gps_x, gps_y
 
 
 class PathData:
@@ -52,12 +31,11 @@ class PathData:
             # 버스타고 환승 없이 가는 경로의 시간을 찾는 경우이므로 환승 횟수가 1인 경우를 검색
             pathList_tag = itemList_tag[i].find_all('pathList')
 
-            if len(pathList_tag) == 1 :
+            if len(pathList_tag) == 1:
 
                 if itemList_tag[i].find('routeId').text == str(routeId) :
 
                     time = itemList_tag[i].find('time').text
-
                     station = itemList_tag[i].find('tname').text
 
         return time,station
@@ -86,9 +64,6 @@ class GetStationByBusRoute:
         bus_route_info = {}
 
         xmlUrl = 'http://ws.bus.go.kr/api/rest/busRouteInfo/getStaionByRoute'
-
-        My_API_Key = unquote(
-            'bhQZulxZSz%2FeMsDseMe2DSccTVB%2BQPnxTxDp4SrK7HYRP%2BS0YDiBn93FLz0d%2FMFbyMPUqAvaMqrtW4e9%2FnHYhA%3D%3D')
 
         queryParams = '?' + urlencode({quote_plus('ServiceKey'): my_api_key,
                                        quote_plus('busRouteId'): self.bus_route})
@@ -136,7 +111,7 @@ class DestinationStation:
 
         self.gps_x = gps_x
         self.gps_y = gps_y
-        self.time = time
+        self.time = int(time) - 5
 
     def result_station(self):
 
@@ -145,7 +120,7 @@ class DestinationStation:
 
         bst = SeoulBusAPI.BusStation(service_key)
         station_list = bst.findStation(self.gps_x, self.gps_y)
-        print(station_list)  # 근처 정류장 모두 찾기
+        #print(station_list)  # 근처 정류장 모두 찾기
 
         for station in station_list:
             get_route = SeoulBusAPI.BusRoute(service_key).getRoute(station)
@@ -155,24 +130,24 @@ class DestinationStation:
                         # 오류나는 버스 노선 제거 (오류나는 버스 노선이 2로 시작)
                         bus_route_list.append(i)
 
-        print(bus_route_list)  # 정류장이 지나는 버스 노선 찾기
+        #print(bus_route_list)  # 정류장이 지나는 버스 노선 찾기
 
         for route in bus_route_list:
 
             # api에서 제공하는 구간거리, 구간속도를 기준으로 도착 정류장 계산
 
             df = GetStationByBusRoute(route).search()
-            station_num_list = list(np.array(df['정류소번호'].tolist()))
-            bus_directions = list(np.array(df['진행방향'].tolist()))
-            gps_x_list = list(np.array(df['gpsX'].tolist()))
-            gps_y_list = list(np.array(df['gpsY'].tolist()))
-            sect_spd_list = list(np.array(df['구간속도'].tolist()))
-            sect_dist = list(np.array(df['구간거리'].tolist()))
-            station_names = list(np.array(df['정류장이름'].tolist()))
+            station_num_list = df['정류소번호'].tolist()
+            bus_directions = df['진행방향'].tolist()
+            gps_x_list = df['gpsX'].tolist()
+            gps_y_list = df['gpsY'].tolist()
+            sect_spd_list = df['구간속도'].tolist()
+            sect_dist = df['구간거리'].tolist()
+            station_names = df['정류장이름'].tolist()
 
             for station in station_list:
 
-                req_time = 0
+                tmp_time = 0
                 cnt = 1
 
                 if station in station_num_list:
@@ -180,16 +155,26 @@ class DestinationStation:
 
                     # 도착 정류장 계산
                     while True:
+                        if start_index + cnt >= len(sect_dist):
+                            tmp_time = 0
+                            cnt = 1
+                            break
                         # 속도를 km/h에서 m/m으로 수정
-                        meter_per_min = int(sect_spd_list[start_index + cnt]) * 1000 / 60
-                        req_time += int(sect_dist[start_index + cnt]) / meter_per_min
-                        if req_time > self.time:
-                            req_time = int(req_time)
+                        if sect_spd_list[start_index + cnt] == '0':
+                            sect_spd_list[start_index + cnt] = 1
+                        meter_per_min = float(sect_spd_list[start_index + cnt]) * 1000 / 60
+
+                        if tmp_time + float(sect_dist[start_index + cnt]) / meter_per_min > self.time:
+                            dest_index = start_index + cnt - 1
+                            req_time = tmp_time
+                            tmp_time = 0
+                            cnt = 1
                             break
                         else:
+                            tmp_time += float(sect_dist[start_index + cnt]) / meter_per_min
                             cnt += 1
 
-                    dest_index = start_index + cnt - 1
+
                     if len(station_num_list) - 1 < dest_index:
                         break
 
