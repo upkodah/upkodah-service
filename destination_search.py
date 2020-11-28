@@ -13,6 +13,8 @@ class PathData:
 
 
     def search(self, start_x, start_y, end_x, end_y, routeId):
+        time = 0
+        station = ''
 
         xmlUrl = 'http://ws.bus.go.kr/api/rest/pathinfo/getPathInfoByBusNSub'
 
@@ -31,9 +33,11 @@ class PathData:
             # 버스타고 환승 없이 가는 경로의 시간을 찾는 경우이므로 환승 횟수가 1인 경우를 검색
             pathList_tag = itemList_tag[i].find_all('pathList')
 
+
             if len(pathList_tag) == 1:
 
-                if itemList_tag[i].find('routeId').text == str(routeId) :
+
+                if itemList_tag[i].find('routeId').text == str(routeId):
 
                     time = itemList_tag[i].find('time').text
                     station = itemList_tag[i].find('tname').text
@@ -134,8 +138,6 @@ class DestinationStation:
 
         for route in bus_route_list:
 
-            # api에서 제공하는 구간거리, 구간속도를 기준으로 도착 정류장 계산
-
             df = GetStationByBusRoute(route).search()
             station_num_list = df['정류소번호'].tolist()
             bus_directions = df['진행방향'].tolist()
@@ -146,55 +148,78 @@ class DestinationStation:
             station_names = df['정류장이름'].tolist()
 
             for station in station_list:
-
-                tmp_time = 0
-                cnt = 1
+                # 출발지 - 목적지 도착 시간 계산 api 호출하여 시간 계산
 
                 if station in station_num_list:
                     start_index = station_num_list.index(station)
 
-                    # 도착 정류장 계산
-                    while True:
-                        if start_index + cnt >= len(sect_dist):
-                            tmp_time = 0
-                            cnt = 1
-                            break
-                        # 속도를 km/h에서 m/m으로 수정
-                        if sect_spd_list[start_index + cnt] == '0':
-                            sect_spd_list[start_index + cnt] = 1
-                        meter_per_min = float(sect_spd_list[start_index + cnt]) * 1000 / 60
-
-                        if tmp_time + float(sect_dist[start_index + cnt]) / meter_per_min > self.time:
-                            dest_index = start_index + cnt - 1
-                            req_time = tmp_time
-                            tmp_time = 0
-                            cnt = 1
-                            break
-                        else:
-                            tmp_time += float(sect_dist[start_index + cnt]) / meter_per_min
-                            cnt += 1
-
-
-                    if len(station_num_list) - 1 < dest_index:
+                    start_x = gps_x_list[start_index]
+                    start_y = gps_y_list[start_index]
+                    dest_index = int(start_index + self.time/1.5)
+                    if dest_index >= len(gps_x_list):
                         break
+                    end_x = gps_x_list[dest_index]
+                    end_y = gps_y_list[dest_index]
 
-                    if bus_directions[start_index] == bus_directions[dest_index]:
-                        # 버스가 회차한 경우를 제외하기 위해 방향이 같은 정류장 선택
-                        stt_name = station_names[dest_index]
-                        one_result = [gps_x_list[dest_index],gps_y_list[dest_index], req_time, stt_name]
+                    bus_time, result_station = PathData().search(start_x, start_y, end_x, end_y, route)
+                    bus_time = int(bus_time)
 
-                        if one_result not in station_gps_list:
-                            # 중복되는 결과 제외
-                            station_gps_list.append(one_result)
-                        '''
-                        print(gps_x[start_index], gps_y[start_index], gps_x[dest_index], gps_y[dest_index])
-                        print('소요시간 : ', req_time)
-                        print('도착 정류장 : ' + stt_name)
-                        '''
+                    cnt = 0
+
+                    while True:
+                        cnt += 1
+                        if bus_time - self.time > 10:
+                            dest_index -= 3
+                            if dest_index < 0:
+                                break
+                            end_x = gps_x_list[dest_index]
+                            end_y = gps_y_list[dest_index]
+
+                            bus_time, result_station = PathData().search(start_x, start_y, end_x, end_y, route)
+                            bus_time = int(bus_time)
+
+                        elif bus_time - self.time > 4:
+                            dest_index -= 1
+                            if dest_index < 0:
+                                break
+                            end_x = gps_x_list[dest_index]
+                            end_y = gps_y_list[dest_index]
+
+                            bus_time, result_station = PathData().search(start_x, start_y, end_x, end_y, route)
+                            bus_time = int(bus_time)
+
+                        if bus_time - self.time < -10:
+                            dest_index += 3
+                            if dest_index >= len(gps_x_list):
+                                break
+                            end_x = gps_x_list[dest_index]
+                            end_y = gps_y_list[dest_index]
+
+                            bus_time, result_station = PathData().search(start_x, start_y, end_x, end_y, route)
+                            bus_time = int(bus_time)
+
+                        elif bus_time - self.time < -4:
+                            dest_index += 1
+                            if dest_index >= len(gps_x_list):
+                                break
+                            end_x = gps_x_list[dest_index]
+                            end_y = gps_y_list[dest_index]
+
+                            bus_time, result_station = PathData().search(start_x, start_y, end_x, end_y, route)
+                            bus_time = int(bus_time)
+
+                        if cnt > 4:
+                            break
+
+
+                    if bus_time - self.time < 5 and bus_time - self.time > -5:
+                        if bus_directions[start_index] == bus_directions[dest_index]:
+                            # 버스가 회차한 경우를 제외하기 위해 방향이 같은 정류장 선택
+                            stt_name = station_names[dest_index]
+                            one_result = [gps_x_list[dest_index],gps_y_list[dest_index], bus_time, stt_name]
+
+                            if one_result not in station_gps_list:
+                                # 중복되는 결과 제외
+                                station_gps_list.append(one_result)
 
         return station_gps_list
-
-    def show_result(self):
-        station_list = self.result_station()
-        for i in station_list:
-            print(i)
