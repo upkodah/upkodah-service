@@ -8,6 +8,8 @@ import seoulbus as sb
 from haversine import haversine
 import seoulbuserror as sberr
 
+import time
+
 DFT_RADIUS = 500
 WALKING_SPD = 80    # meter per minute
 TOLERANCE = 5
@@ -27,16 +29,15 @@ def get_near_subway(x, y, radius=DFT_RADIUS):
 
     _uri = 'https://dapi.kakao.com/v2/local/search/category.json'
     _header = {'Authorization': 'KakaoAK ' + sb.read_key('kakaolocal.jsj')}
-    # set params
+    
     _params = dict()
     _params['category_group_code'] = 'SW8'      # 지하철 카테고리 검색
     _params['x'] = x
     _params['y'] = y
     _params['radius'] = radius
 
-    # API 요청
     resp = requests.get(_uri, params=_params, headers=_header)
-    # http error
+
     if resp.status_code != requests.codes.ok:
         print(f'HTTP ERROR: RESPONSE <{resp.status_code}>')
         raise HTTPError
@@ -198,7 +199,7 @@ def get_intime_subway(gps_x, gps_y, eta):
             #print(f'{subway_x},{subway_x} 와 {s_x},{s_y}의 거리:{h}')
             samelane_df.loc[index, ['distance']] = h
         # 2km 정도에 10분 내외의 도착시간을 가지므로, 오차 범위를 두어 API 범위를 줄임.
-        distance_condition = ((time_on_subway/5 - 1.0) < samelane_df['distance']) &(samelane_df['distance'] < (time_on_subway/5 + 5))
+        distance_condition = ((time_on_subway/5 - 0) < samelane_df['distance']) &(samelane_df['distance'] < (time_on_subway/5 + 5))
         around_df = samelane_df[distance_condition].copy()
         #print(around_df)
 
@@ -206,11 +207,11 @@ def get_intime_subway(gps_x, gps_y, eta):
         time_list = list()
         for index, station in around_df.iterrows():
             ''' A) 서울교통공사 API 사용 메소드: 현재 500 HTTP 에러 발생 중 '''
-            #time_list.append(get_time_by_subway(subway_x,subway_y, station['x'], station['y']))
+            time_list.append(get_time_by_subway(subway_x,subway_y, station['x'], station['y']))
             ''' B) 네이버 API 사용 메소드: '''
-            start_scode = samelane_df[samelane_df['longName'] == near_subway['place_name']]['id']
-            goal_scode = station['id']
-            time_list.append(get_time_by_subway_n(start_scode, goal_scode))
+            # start_scode = samelane_df[samelane_df['longName'] == near_subway['place_name']]['id']
+            # goal_scode = station['id']
+            # time_list.append(get_time_by_subway_n(start_scode, goal_scode))
 
         around_df.insert(0, 'time', time_list)
         # 시간 조건. 
@@ -225,9 +226,10 @@ def get_intime_subway(gps_x, gps_y, eta):
 
 if __name__ == '__main__':
     # test get_near_subway
-
+    start_time = time.time()
     df = get_intime_subway(127.058391, 37.587955, 30)
-    print('결과!!!')
+    print('결과')
     print(df)
+    print('소요 시간: ', time.time() - start_time)
 
     #print(get_time_by_subway_n(428, 132))

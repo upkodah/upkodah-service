@@ -8,6 +8,8 @@ import seoulbuserror as sberr
 import pandas as pd
 import xmltodict
 
+import time
+
 # 서울특별시 경위도 한계
 LONG_UPP = 127.269311  # 서울특별시 경도 상한 X
 LONG_LOW = 126.734086  # 서울특별시 경도 하한
@@ -493,5 +495,8 @@ if __name__=='__main__':
     #print(station_df.loc[0:5,['sectTime', 'fullSectDist', 'sectSpd']])
 
     # # test find_station_by_time()
+    start_time = time.time()
     df = find_station_by_time(126.890001872801,37.5757542035555, 40)
-    print(df)
+    print(df.loc[:,['arsId', 'gpsX', 'gpsY']])
+
+    print("프로그램 시간: ", time.time() - start_time)
