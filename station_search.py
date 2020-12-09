@@ -1,129 +1,155 @@
 import requests
-import bs4
-from urllib.parse import urlencode, quote_plus, unquote, quote
+from bs4 import BeautifulSoup
 import pandas as pd
 import seoulbus as sb
 import seoulsubway as ssub
 
+subway_route = pd.read_csv('subway_with_time.csv', encoding='utf-8')
+subway_route.astype({'time':float})
 
-subway_route = pd.read_csv('subway_time.csv', encoding='CP949')
+def get_path_by_subway(start_x, start_y, end_x, end_y):
 
-class SubwayPathData:
+    url = 'http://ws.bus.go.kr/api/rest/pathinfo/getPathInfoBySubway'
 
-    def subway_path(self, start_x, start_y, end_x, end_y):
+    header = {'serviceKey':sb.read_key('kr.go.data.jsh')}
 
-        url = 'http://ws.bus.go.kr/api/rest/pathinfo/getPathInfoBySubway'
+    params = dict()
+    params['startX'] = start_x
+    params['startY'] = start_y
+    params['endX'] = end_x
+    params['endY'] = end_y
 
-        header = {'serviceKey':sb.read_key('kr.go.data.jsh')}
+    resp = requests.get(url, params=params, headers=header)
+    xmlobj = BeautifulSoup(resp.text, 'lxml-xml')
+    item_list = xmlobj.findAll('itemList')
 
-        params = dict()
-        params['startX'] = start_x
-        params['startY'] = start_y
-        params['endX'] = end_x
-        params['endY'] = end_y
+    time = None
+    for item in item_list:
 
-        response = requests.get(url, params=params, headers=header)
-        xmlobj = bs4.BeautifulSoup(response, 'lxml-xml')
-        itemList_tag = xmlobj.findAll('itemList')
+        # 지하철 타고 환승 없이 가는 경로의 시간을 찾는 경우이므로 환승 횟수가 1인 경우를 검색
+        path_list= item.find_all('pathList')
 
-        for item_tag in itemList_tag:
+        if len(path_list) == 1 :
+            time = item.find('time').text            
 
-            # 지하철 타고 환승 없이 가는 경로의 시간을 찾는 경우이므로 환승 횟수가 1인 경우를 검색
-            pathList_tag = item_tag.find_all('pathList')
+    return time
 
-            if len(pathList_tag) == 1 :
-                time = item_tag.find('time').text
+def get_station_gps(st_name):
+    ''' 지하철 역의 좌표를 얻는 함수   '''
+    subway_df = pd.read_csv('subway_naver_more.csv')
+    st = subway_df[subway_df['displayName'] == st_name]
+    if len(st) == 0:
+        return get_station_gps_rq(st_name)
+    return st['x'].values[0], st['y'].values[0]
 
-        return time
+def get_station_gps_rq(st_name):
+    ''' 지하철 역 좌표 획득 리퀘스트
+
+    Args:
+        stt_name:
+    Return:
+        gps_x, gps_y
+    '''
+    _url = 'http://ws.bus.go.kr/api/rest/pathinfo/getLocationInfo'
+    _header = {'ServiceKey': sb.read_key('kr.go.data.jsh')}
+
+    # set params
+    _params = dict()
+    _params['stSrch'] = st_name.replace('역','')
+
+    # API 요청
+    resp = requests.get(_url, params=_params, headers=_header)
+    xmlobj = BeautifulSoup(resp.text, 'lxml-xml')
+
+    item_list = xmlobj.findAll('itemList')
+    if len(item_list) == 0:
+        return None, None
+    gps_x = item_list[0].find('gpsX').text
+    gps_y = item_list[0].find('gpsY').text
+
+    return gps_x, gps_y
 
 
-class SubwayDestination:
+def find_station_by_eta(gps_x, gps_y, eta):
 
-    def __init__(self, gps_x, gps_y, time):
+    result_df = pd.DataFrame(columns=['idx', 'lane', 'name', 'time', 'cumulative'])
 
-        self.gps_x = gps_x
-        self.gps_y = gps_y
-        self.time = time
+    cnt = 1
+    #tmp_time = 0
 
-    def result_sub_station(self):
+    near_df = pd.DataFrame(ssub.get_near_subway(gps_x, gps_y))
+    print('주변 지하철: ', str(near_df['place_name'].values).strip('[]\''))
 
-        result_gps = []
-        name_list = []
-        distance = []
-        result_station = []
-        cnt = 1
+    for index, row in near_df.iterrows():
+        # 목적지에서 지하철역까지 거리를 성인 평균 보행 속도 80m/s(67) 를 나누어 지하철역까지의 보행시간 계산
+        walk_time = int(row['distance'])/80
+        sub_time = eta - walk_time
+        print('요청 지하철 시간: ', sub_time)
+
+        station_name, lane = row['place_name'].split()
+
+        departure = subway_route[subway_route['name'] == station_name]
+        #print(departure)
+        idx_depart = departure['idx'].values[0]
+        #print(idx_depart)
+
+        up_df = subway_route[(subway_route['lane'] == lane) & (subway_route['idx'] > idx_depart)].copy()
+        down_df = subway_route[(subway_route['lane'] == lane) & (subway_route['idx'] < idx_depart)].copy()
+
+        # 각 라인의 상행선 하행선의 누적시간을 계산.
+        up_sum = up_df['time'].sum()
+        down_sum = down_df['time'].sum()
+        #print(up_sum)
+        #print(down_sum)
+
+        # 각 호선에 대하여 누적 시간 계산
         tmp_time = 0
+        for i, sub in up_df.iterrows():
+            tmp_time += sub['time']
+            up_df.loc[i, ['cumulative']] = tmp_time
 
-        #stt_gps = StationGps()
-        #name_list, distance = stt_gps.get_near_station_gps(self.gps_x, self.gps_y)
-        subway_dict = ssub.get_near_subway(self.gps_x, self.gps_y)
-        for subway in subway_dict:
-            name_list.append(subway['place_name'])
-            distance.append(subway['distance'])
+        tmp_time = down_sum
+        for i, sub in down_df.iterrows():
+            down_df.loc[i, ['cumulative']] = tmp_time
+            tmp_time -= sub['time']
 
-        for i, distance in enumerate(distance):
-            # 목적지에서 지하철역까지 거리를 성인 평균 보행 속도 67m/s 를 나누어 지하철역까지의 보행시간 계산
-            self.time = self.time - int(distance)/67
-            station_name = name_list[i].split()[0]
+        #print(up_df)
+        #print(down_df)
 
-            for j, sub in enumerate(subway_route):
-                if station_name in sub:
-                    #아래방향으로 지하철역 확인
-                    while(True):
-                        if j+cnt >= len(subway_route):
-                            cnt = 1
-                            tmp_time = 0
-                            break
-                        # 도착 지하철역 까지의 시간이 처음 입력된 시간을 초과하기 전에 break
-                        if tmp_time + int(subway_route[j+cnt][2]) > self.time:
-                            if subway_route[j][0] == subway_route[j + cnt][0]:
-                                # 같은 지하철 노선인지 확인 후 추가
-                                result_station.append(subway_route[j+cnt][1] + ' ' + subway_route[j+cnt][0])
-                            cnt = 1
-                            tmp_time = 0
-                            break
-                        else:
-                            tmp_time += int(subway_route[j+cnt][2])
-                            cnt += 1
+        up_result = up_df[(sub_time - 10 < up_df['cumulative']) & (up_df['cumulative'] <= sub_time)].copy()
+        down_result = down_df[(sub_time - 10 < down_df['cumulative']) & (down_df['cumulative'] <= sub_time)].copy()
+        up_result['cumulative'] += walk_time
+        down_result['cumulative'] += walk_time
 
-                    # 위방향으로 지하철역 확인
-                    while (True):
-                        if j-cnt < 0:
-                            cnt = 1
-                            tmp_time = 0
-                            break
-                        # 도착 지하철역 까지의 시간이 처음 입력된 시간을 초과하기 전에 break
-                        if tmp_time + int(subway_route[j-cnt+1][2]) > self.time:
-                            if subway_route[j][0] == subway_route[j - cnt][0]:
-                                # 같은 지하철 노선인지 확인 후 추가
-                                result_station.append(subway_route[j-cnt][1] + ' ' + subway_route[j-cnt][0])
-                            cnt = 1
-                            tmp_time = 0
-                            break
-                        else:
-                            tmp_time += int(subway_route[j-cnt+1][2])
-                            cnt += 1
+        #print('시간 내 결과')
+        #print(up_result)
+        #print(down_result)
+        
+        #if not up_result.empty:
+        result_df = result_df.append(up_result, ignore_index=True)
+        #if not down_result.empty:
+        result_df = result_df.append(down_result, ignore_index=True)
 
-        for stt in result_station:
-            gps_x, gps_y = StationGps().get_station_gps(stt)
-            result_gps.append([gps_x, gps_y])
+    #print(result_df)
+    for index, station in result_df.iterrows():
+        gps_x, gps_y = get_station_gps(station['name'])
+        result_df.loc[index, ['x']] = gps_x
+        result_df.loc[index, ['y']] = gps_y
+        #result_gps.append([gps_x, gps_y])
 
-        return  result_gps
-
-
+    return  result_df
 
 if __name__ == '__main__':
-
-    print(subway_route)
-    '''
-    sub = SubwayDestination(127.0816985, 37.5642135, 20)
-    print(sub.result_sub_station())
+    # 시간 - 지하철 정보
+    #print(subway_route)
+    print(get_station_gps('뚝섬유원지역'))
     
-    print('시간1')
-    spd = SubwayPathData()
-    print(spd.subway_path(127.0816985, 37.5642135, 127.021653112054, 37.5112018042687))
+    # test
+    print(find_station_by_eta(127.0816985, 37.5642135, 20))
+    
+    # print('시간1')
+    # print(get_path_by_subway(127.0816985, 37.5642135, 127.021653112054, 37.5112018042687))
 
-    print('시간2')
-    spd = SubwayPathData()
-    print(spd.subway_path(127.0816985, 37.5642135, 127.067991278758, 37.6364765391858))
-    '''
+    # print('시간2')
+    # print(get_path_by_subway(127.0816985, 37.5642135, 127.067991278758, 37.6364765391858))
+    
