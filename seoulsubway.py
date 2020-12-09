@@ -8,6 +8,8 @@ import seoulbus as sb
 from haversine import haversine
 import seoulbuserror as sberr
 
+from grid import geogrid
+
 import time
 
 DFT_RADIUS = 500
@@ -49,6 +51,7 @@ def get_near_subway(x, y, radius=DFT_RADIUS):
 
     # 호선 정보 추가.
     subway_list = resp.json()['documents']
+    #print(subway_list)
     for subway in subway_list:
         lane = subway['place_name'].split(' ')[-1]
         subway['lane'] = lane
@@ -64,6 +67,7 @@ def get_walking_time_to_subway(near_subway_list):
     '''
     time_list = list()
     for subway in near_subway_list:
+        #print('distance: ', subway['distance'])
         time_list.append(int(subway['distance'])/WALKING_SPD)
     return time_list
 
@@ -186,7 +190,8 @@ def get_intime_subway(gps_x, gps_y, eta):
         subway_x = float(near_subway['x'])
         subway_y = float(near_subway['y'])
 
-        time_on_subway = eta - walk_time_list[index]
+        walk_time = walk_time_list[index]
+        time_on_subway = eta - walk_time
 
         # samelane_df : 동일 호선 위의 역들
         samelane_df = all_subway_df[lane_condition].copy()
@@ -207,18 +212,20 @@ def get_intime_subway(gps_x, gps_y, eta):
         time_list = list()
         for index, station in around_df.iterrows():
             ''' A) 서울교통공사 API 사용 메소드: 현재 500 HTTP 에러 발생 중 '''
-            time_list.append(get_time_by_subway(subway_x,subway_y, station['x'], station['y']))
+            #time_list.append(get_time_by_subway(subway_x,subway_y, station['x'], station['y']))
             ''' B) 네이버 API 사용 메소드: '''
-            # start_scode = samelane_df[samelane_df['longName'] == near_subway['place_name']]['id']
-            # goal_scode = station['id']
-            # time_list.append(get_time_by_subway_n(start_scode, goal_scode))
+            start_scode = samelane_df[samelane_df['longName'] == near_subway['place_name']]['id']
+            goal_scode = station['id']
+            time_list.append(get_time_by_subway_n(start_scode, goal_scode))
 
         around_df.insert(0, 'time', time_list)
         # 시간 조건. 
         # 지하철 위의 시간(time_on_subway)이 시간 결과(around_df['time'])에 맞음. 오차 TOLERANCE에서 하향 조정.
-        condition = ((time_on_subway - TOLERANCE-3) < around_df['time']) & (around_df['time'] < (time_on_subway + TOLERANCE-3))
+        condition = ((time_on_subway - TOLERANCE-5) < around_df['time']) & (around_df['time'] < (time_on_subway + TOLERANCE-3))
 
         tmp_df = around_df[condition].copy()
+
+        tmp_df['time'] = tmp_df['time'] + walk_time
         destination_df = pd.concat([destination_df,tmp_df], axis=0, ignore_index=True)
 
     destination_df.reset_index()
@@ -226,10 +233,28 @@ def get_intime_subway(gps_x, gps_y, eta):
 
 if __name__ == '__main__':
     # test get_near_subway
-    start_time = time.time()
-    df = get_intime_subway(127.058391, 37.587955, 30)
-    print('결과')
-    print(df)
-    print('소요 시간: ', time.time() - start_time)
+    lon = 127.1515
+    lat = 37.5975
+        
+    gg = geogrid.GeoGrid()
+    
+    for i in range(4, 5):
+        eta = 10*i
 
-    #print(get_time_by_subway_n(428, 132))
+        start_time = time.time()
+        df = get_intime_subway(lon, lat, eta)
+        df['lon'] = lon
+        df['lat'] = lat
+        #df['keyword'] = keyword
+        df['transType'] = 1
+        #print('결과')
+        #print(df)
+        print('소요 시간: ', time.time() - start_time)
+
+        if len(df) == 0:
+            continue
+        for index, row in df.iterrows():
+            df.loc[index, ['gridId']] = gg.get_grid_id(row['x'], row['y'])
+
+        sub_df = df.loc[:,['lon','lat', 'keyword', 'displayName', 'LaneName', 'transType', 'time','x', 'y', 'gridId']].copy()
+

@@ -4,11 +4,12 @@ from configparser import ConfigParser
 from bs4 import BeautifulSoup
 from requests.exceptions import HTTPError
 import seoulbuserror as sberr
-
+from grid import geogrid
 import pandas as pd
 import xmltodict
 
 import time
+
 
 # 서울특별시 경위도 한계
 LONG_UPP = 127.269311  # 서울특별시 경도 상한 X
@@ -71,8 +72,7 @@ def get_station_by_pos(gps_x, gps_y, radius=DFT_RADIUS):
     # TODO: add http excetion
     # http error detected
     if resp.status_code != requests.codes.ok:
-        print(f'HTTP ERROR: RESPONSE <{resp.status_code}>')
-        return None
+        resp.raise_for_status()
 
     bsxml = BeautifulSoup(resp.text, 'lxml-xml')  # Parsing XML
 
@@ -121,8 +121,7 @@ def get_route_by_station(ars_id):
     # TODO: add http excetion
     # http error detected
     if resp.status_code != requests.codes.ok:
-        print(f'HTTP ERROR: RESPONSE <{resp.status_code}>')
-        return None
+        resp.raise_for_status()
 
     bsxml = BeautifulSoup(resp.text, 'lxml-xml')  # Parsing XML
 
@@ -170,8 +169,7 @@ def get_station_by_route(route_id):
     # TODO: add http excetion
     # http error detected
     if resp.status_code != requests.codes.ok:
-        print(f'HTTP ERROR: RESPONSE <{resp.status_code}>')
-        return None
+        resp.raise_for_status()
 
     bsxml = BeautifulSoup(resp.text, 'lxml-xml')  # Parsing XML
 
@@ -220,8 +218,7 @@ def get_station_info_by_route(route_id):
     # TODO: add http excetion
     # http error detected
     if resp.status_code != requests.codes.ok:
-        print(f'HTTP ERROR: RESPONSE <{resp.status_code}>')
-        return None
+        resp.raise_for_status()
 
     bsxml = BeautifulSoup(resp.text, 'lxml-xml')  # Parsing XML
 
@@ -234,7 +231,7 @@ def get_station_info_by_route(route_id):
     station_df = pd.DataFrame.from_dict(item_dict)
 
     # 구간 속력과 구간 거리를 int로 형 변환. - 시간 계산에 사용
-    station_df = station_df.astype({'sectSpd': int,'fullSectDist':int})
+    station_df = station_df.astype({'sectSpd': float,'fullSectDist':float})
     # 구간 분속, 구간 소요 시간을 추가.
     station_df['sectMinSpd'] = station_df['sectSpd']*1000/60
     station_df['sectTime'] = station_df['fullSectDist']/station_df['sectMinSpd'] 
@@ -257,7 +254,7 @@ def get_non_transfer(start_x, start_y, end_x, end_y, route_id):
 
     '''
     # 초기화
-    _uri = 'http://ws.bus.go.kr/api/rest/pathinfo/getPathInfoByBusNSub'
+    _uri = 'http://ws.bus.go.kr/api/rest/pathinfo/getPathInfoByBus'
     _header = {'serviceKey': api_key}
 
     # set params
@@ -273,8 +270,7 @@ def get_non_transfer(start_x, start_y, end_x, end_y, route_id):
     # TODO: add http excetion
     # http error detected
     if resp.status_code != requests.codes.ok:
-        print(f'HTTP ERROR: RESPONSE <{resp.status_code}>')
-        return None
+        resp.raise_for_status()
 
     bsxml = BeautifulSoup(resp.text, 'lxml-xml')  # Parsing XML
 
@@ -327,8 +323,7 @@ def get_location_by_station_name(station_name):
     # TODO: add http excetion
     # http error detected
     if resp.status_code != requests.codes.ok:
-        print(f'HTTP ERROR: RESPONSE <{resp.status_code}>')
-        return None
+        resp.raise_for_status()
 
     bsxml = BeautifulSoup(resp.text, 'lxml-xml')  # Parsing XML
 
@@ -353,7 +348,7 @@ def find_station_by_time(gps_x, gps_y, time):
 
     # 입력 좌표 주변 정류소 탐색
     station_list = get_station_by_pos(gps_x, gps_y)
-    print(station_list)  # 근처 정류장 모두 찾기
+    print('Nearby Busstop: ', station_list)  # 근처 정류장 모두 찾기
     # station_list : 주변 정류소 list
 
     # 주변 정류소에 대하여
@@ -370,7 +365,7 @@ def find_station_by_time(gps_x, gps_y, time):
                     bus_route_list.append(route)
     # bus_route_list: station_list를 지나는 노선 리스트
 
-    print(bus_route_list)  # 정류장이 지나는 버스 노선 찾기
+    print('Nearby Route: ', bus_route_list)  # 정류장이 지나는 버스 노선 찾기
 
     # dataframe 반환 형식 설정을 위한 columns 초기화
     columns = ['arsId', 'beginTm', 'busRouteId', 'busRouteNm', 'direction', 'gpsX', 'gpsY', 'lastTm', 'posX', 'posY', 'routeType', 'sectSpd', 'section', 'seq', 'station', 'stationNm', 
@@ -378,8 +373,6 @@ def find_station_by_time(gps_x, gps_y, time):
 
     for route in bus_route_list:
 
-        # api에서 제공하는 구간거리, 구간속도를 기준으로 도착 정류장 계산
-        # 정보 가져오기.
         station_df = get_station_info_by_route(route)
 
         dest_index_list = list()    # 최종 지점 인덱스 리스트
@@ -391,7 +384,7 @@ def find_station_by_time(gps_x, gps_y, time):
             if station in station_df['arsId'].to_list():
                 # 주변 정류소를 시작 위치로 설정.
                 start_index = station_df[station_df['arsId'] == station].index[0]
-                print('start_index:', start_index)
+                #print('start_index:', start_index)
 
                 req_time = 0    # required time
                 cnt = 1
@@ -407,7 +400,7 @@ def find_station_by_time(gps_x, gps_y, time):
                         break
 
                     # 소요 시간의 합이 입력 시간을 넘으면 루프 종료.
-                    if req_time > time:
+                    if req_time > time-3:
                         #req_time = int(req_time)
                         break
                     else:
@@ -416,9 +409,11 @@ def find_station_by_time(gps_x, gps_y, time):
                 # 목표 인덱스
                 dest_index = start_index + cnt - 1
 
-                if station_df.loc[start_index]['direction'] == station_df.loc[dest_index]['direction']:
+                if station_df.loc[start_index,['direction']].item() == station_df.loc[dest_index,['direction']].item():
                     # 버스가 회차한 경우를 제외하기 위해 방향이 같은 정류장 선택
                     dest_index_list.append(dest_index)
+                    dest_index_list.append(dest_index-1)
+                    #dest_index_list.append(dest_index-2)
 
                 # 반대 방향
                 req_time = 0    # required time
@@ -433,26 +428,31 @@ def find_station_by_time(gps_x, gps_y, time):
                         break
 
                     # 소요 시간의 합이 입력 시간을 넘으면 루프 종료.
-                    if req_time > time or start_index + cnt<=1:
+                    if req_time > time-3 or start_index + cnt<=1:
                         #req_time = int(req_time)
                         break
                     else:
                         cnt -= 1
                 
                 # 목표 인덱스
-                dest_index = start_index + cnt - 1
-
-                if station_df.loc[start_index]['direction'] == station_df.loc[dest_index]['direction']:
-                    # 버스가 회차한 경우를 제외하기 위해 방향이 같은 정류장 선택
+                dest_index = start_index + cnt + 1
+                
+                if station_df.loc[start_index,['direction']].item() == station_df.loc[dest_index,['direction']].item():
+                #     # 버스가 회차한 경우를 제외하기 위해 방향이 같은 정류장 선택
                     dest_index_list.append(dest_index)
+                    dest_index_list.append(dest_index+1)
+                    #dest_index_list.append(dest_index+2)
                 
         # index_list의 중복 제거
         dest_index_list = list(set(dest_index_list))
-        print(f'노선 번호 {route}의 index:', dest_index_list)
-        #print(station_df.loc[dest_index_list])
+        #print(f'노선 번호 {route}의 index:', dest_index_list)
+        
+        dest_subset_df = station_df.iloc[dest_index_list]
 
-        destination_list.extend(station_df.loc[dest_index_list].values.tolist())
+        destination_list.extend(dest_subset_df.values.tolist())
     destination_df = pd.DataFrame(destination_list, columns=columns)
+    destination_df['time'] = time
+    #print(destination_df)
     return destination_df
 
 ''' TEST CODE '''
@@ -496,7 +496,30 @@ if __name__=='__main__':
 
     # # test find_station_by_time()
     start_time = time.time()
-    df = find_station_by_time(126.890001872801,37.5757542035555, 40)
-    print(df.loc[:,['arsId', 'gpsX', 'gpsY']])
 
-    print("프로그램 시간: ", time.time() - start_time)
+    lon = 127.054732
+    lat = 37.583466 
+    keyword = '시립대 정문'
+    #df_frame = pd.DataFrame(columns=['keyword','busRouteId', 'arsId', 'gpsX', 'gpsY', 'trans_type', 'time', 'grid_id'])
+    #df_frame.to_csv('sample_bus.csv', index=False, header=True, encoding='utf-8')
+
+    for i in range(2,4):
+        eta = 10*i
+
+        df = find_station_by_time(lon, lat, eta)
+        #print(df)
+        df['keyword'] = keyword
+        df['trans_type'] = 0
+        busstop_df = df.loc[:, ['keyword','busRouteNm', 'stationNm', 'gpsX', 'gpsY', 'trans_type', 'time']].copy()
+
+
+        print("프로그램 시간: ", time.time() - start_time)
+        gg = geogrid.GeoGrid()
+        busstop_df = busstop_df.astype({'gpsX':float, 'gpsY':float})
+
+        try:
+            for index, row in busstop_df.iterrows():
+                busstop_df.loc[index, ['grid_id']] = gg.get_grid_id(row['gpsX'], row['gpsY'])
+
+        except KeyError:
+            print("결과가 없습니다.")
