@@ -4,6 +4,5 @@ __pycache__
 
 # config file
 *.ini
-*.txt
 *.js
 subway_result
